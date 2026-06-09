@@ -34,7 +34,7 @@ jobs:
         echo "Menjalankan retraining model via MLProject..."
         mlflow run MLProject \
           --experiment-name "CI_Automated_Retrain" \
-          --no-conda
+          --env-manager local
         echo "✅ Retraining selesai."
 
     # 4b. Mendapatkan Run ID dari experiment terbaru untuk digunakan di build Docker
