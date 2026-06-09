@@ -1,4 +1,4 @@
-name: Movie_Recommendation_Pipeline
+name: diabetes detection machine learnign model
 
 conda_env: conda.yaml
 
