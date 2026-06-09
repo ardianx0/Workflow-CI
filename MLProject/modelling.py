@@ -12,6 +12,10 @@ def main():
     parser.add_argument("--max_depth", type=int, default=8)
     args = parser.parse_args()
 
+    # Set tracking URI dari environment variable (MLFLOW_TRACKING_URI) jika ada, default lokal
+    tracking_uri = os.environ.get("MLFLOW_TRACKING_URI", "mlruns")
+    mlflow.set_tracking_uri(tracking_uri)
+
     # Load data dari folder terluar project CI
     data_path = os.path.join("namadataset_preprocessing", "diabetes_clean.csv")
     df = pd.read_csv(data_path)
@@ -29,7 +33,8 @@ def main():
         mlflow.log_metric("accuracy", model.score(X_test, y_test))
         
         mlflow.sklearn.log_model(model, "model")
-        print("Retraining model via MLProject Sukses!")
+        run_id = mlflow.active_run().info.run_id
+        print(f"✅ Retraining model via MLProject Sukses! Run ID: {run_id}")
 
 if __name__ == "__main__":
     main()

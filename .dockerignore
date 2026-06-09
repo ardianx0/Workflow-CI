@@ -1,0 +1,33 @@
+# Git
+.git
+.gitignore
+.github
+
+# MLflow artifacts
+mlruns
+mlartifacts
+
+# Data
+*.csv
+namadataset_preprocessing
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+
+# Conda env (jika ada lokal)
+conda.yaml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode
+.idea
+
+# Project config (tidak diperlukan di container serving)
+MLProject
+modelling.py

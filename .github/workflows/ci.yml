@@ -21,33 +21,82 @@ jobs:
       with:
         python-version: '3.10'
 
-    # 3. Menginstal semua dependensi Python yang dibutuhkan untuk training
+    # 3. Menginstal dependensi yang dibutuhkan (pip + conda compatibility)
     - name: Install Dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install mlflow scikit-learn pandas numpy
+        pip install mlflow scikit-learn pandas numpy jq
 
-    # 4. Menjalankan retraining MLProject dengan flag --no-conda agar tidak error virtual env
+    # 4. Menjalankan retraining MLProject dengan MLflow tracking URI lokal
     - name: Run MLflow Project Retraining
       run: |
-        mlflow run MLProject --experiment-name "CI_Automated_Retrain" --no-conda
+        export MLFLOW_TRACKING_URI="${{ github.workspace }}/mlruns"
+        echo "Menjalankan retraining model via MLProject..."
+        mlflow run MLProject \
+          --experiment-name "CI_Automated_Retrain" \
+          --no-conda
+        echo "✅ Retraining selesai."
 
-    # 5. Menyiapkan fitur Docker Buildx di sistem GitHub Actions
+    # 4b. Mendapatkan Run ID dari experiment terbaru untuk digunakan di build Docker
+    - name: Get Latest MLflow Run ID
+      run: |
+        python3 << 'PYEOF'
+        import mlflow, os
+        tracking_uri = os.environ.get("GITHUB_WORKSPACE", "/github/workspace") + "/mlruns"
+        mlflow.set_tracking_uri(tracking_uri)
+        client = mlflow.tracking.MlflowClient()
+        exp = client.get_experiment_by_name("CI_Automated_Retrain")
+        if exp is None:
+            print("ERROR: Experiment tidak ditemukan!")
+            exit(1)
+        runs = client.search_runs(
+            experiment_ids=[exp.experiment_id],
+            max_results=1,
+            order_by=["start_time DESC"]
+        )
+        if not runs:
+            print("ERROR: Tidak ada run ditemukan!")
+            exit(1)
+        run_id = runs[0].info.run_id
+        with open(os.environ["GITHUB_ENV"], "a") as f:
+            f.write(f"MLFLOW_RUN_ID={run_id}\n")
+        print(f"Latest Run ID: {run_id}")
+        PYEOF
+
+    # 5. Validasi bahwa secrets Docker tersedia sebelum lanjut
+    - name: Validate Docker Secrets
+      run: |
+        if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ] || [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+          echo "❌ ERROR: Secrets DOCKERHUB_USERNAME dan/atau DOCKERHUB_TOKEN tidak terdefinisi."
+          exit 1
+        fi
+        echo "✅ Secrets Docker Hub terdefinisi dengan baik."
+
+    # 6. Menyiapkan fitur Docker Buildx di sistem GitHub Actions
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
 
-    # 6. Melakukan proses login otomatis ke Docker Hub menggunakan GitHub Secrets
+    # 7. Melakukan proses login otomatis ke Docker Hub menggunakan GitHub Secrets
     - name: Login to Docker Hub
       uses: docker/login-action@v2
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    # 7. Mengemas model hasil training menjadi Docker Image dan melakukan push otomatis
+    # 8. Mengemas model hasil training menjadi Docker Image dan melakukan push otomatis
     - name: Build and Push Docker Image
       run: |
-        echo "Membangun Docker Image untuk serving model..."
-        mlflow models build-docker -m "MLProject/model" -n "${{ secrets.DOCKERHUB_USERNAME }}/diabetes-monitoring-app:latest" --enable-mlserver
+        echo "Membangun Docker Image untuk serving model dari Run ID: ${{ env.MLFLOW_RUN_ID }}..."
+        
+        # Gunakan runs:/ URI yang merujuk ke artifact model dari run terbaru
+        mlflow models build-docker \
+          -m "runs:/${{ env.MLFLOW_RUN_ID }}/model" \
+          -n "${{ secrets.DOCKERHUB_USERNAME }}/diabetes-monitoring-app:latest" \
+          --enable-mlserver
         
         echo "Mengunggah Image ke Docker Hub..."
         docker push ${{ secrets.DOCKERHUB_USERNAME }}/diabetes-monitoring-app:latest
+
+    # 9. Membersihkan artifacts mlruns agar tidak ikut ter-commit
+    - name: Cleanup MLflow Artifacts
+      run: rm -rf "${{ github.workspace }}/mlruns"
