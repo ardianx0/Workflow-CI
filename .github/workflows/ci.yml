@@ -1,4 +1,4 @@
-name: Workflow-CI Retraining & Docker Build
+name: Proyek-SML-Integrated-CI
 
 on:
   push:
@@ -7,9 +7,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  retrain-and-build:
+  mlflow-ci-build:
     runs-on: ubuntu-latest
-
     steps:
     - name: Checkout Code
       uses: actions/checkout@v3
@@ -39,9 +38,6 @@ jobs:
 
     - name: Build and Push Docker Image
       run: |
-        echo "Membangun Docker Image dari model..."
-        # Mencari run ID terakhir atau folder model lokal untuk dikemas
+        # Menggunakan format rahasia dinamis agar otomatis membaca username ardian0x1
         mlflow models build-docker -m "MLProject/model" -n "${{ secrets.DOCKERHUB_USERNAME }}/diabetes-monitoring-app:latest" --enable-mlserver
-        
-        echo "Mengunggah ke Docker Hub..."
         docker push ${{ secrets.DOCKERHUB_USERNAME }}/diabetes-monitoring-app:latest
