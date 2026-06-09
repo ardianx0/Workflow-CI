@@ -1,5 +1,4 @@
-name: diabetes detection machine learnign model
-
+name: diabetes-monitoring-app
 conda_env: conda.yaml
 
 entry_points:
